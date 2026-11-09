@@ -44,7 +44,7 @@ function getFbc(){
   }catch(e){}
   return '';
 }
-var CUSTOM_EVENTS={LandingPageView:1,ImageSwipe:1,CouponCopy:1,AmazonClick:1};
+var CUSTOM_EVENTS={LandingPageView:1,ImageSwipe:1,CouponCopy:1};
 function metaTrack(name,params,user){
   var eventId=newEventId();
   params=params||{};
@@ -323,7 +323,7 @@ src=""/>
       <svg viewBox="0 0 32 32" fill="none"><path d="M19.2 3.5 9.7 17h6.1l-3 11.5L23.1 14h-6.3l2.4-10.5Z" fill="currentColor"/></svg>
     </i></div>
     <div class="who">
-      <div class="handle">prilance_marketing</div>
+      <div class="handle">laasyna</div>
       <div class="sponsored">Sponsored</div>
     </div>
   </header>
@@ -417,6 +417,19 @@ src=""/>
   </footer>
 </div>
 
+<div class="lead-ov" id="leadOv" role="dialog" aria-modal="true" aria-labelledby="leadT">
+  <form class="lead" id="leadForm" novalidate>
+    <h3 id="leadT">Order se pehle details daalein</h3>
+    <p>Offer aur order updates ke liye. Phir aap seedha Amazon par jaayenge.</p>
+    <input id="lfName" type="text" name="fn" placeholder="Pehla naam" autocomplete="given-name">
+    <input id="lfPhone" type="tel" name="ph" placeholder="Mobile number (10 digit)" autocomplete="tel" inputmode="numeric" required>
+    <input id="lfEmail" type="email" name="em" placeholder="Email (optional)" autocomplete="email">
+    <div class="err" id="lfErr"></div>
+    <button class="go" type="submit">Amazon par jaayein</button>
+    <button class="skip" type="button" id="lfSkip">Skip karke aage badhein</button>
+    <div class="fine">Aapki details sirf offers/updates ke liye use hongi.</div>
+  </form>
+</div>
 <script>
 /* Replace this with your real Amazon product URL. */
 const AMAZON_URL = "https://link.amazon/B01GQjhE1";
@@ -525,11 +538,12 @@ document.getElementById("codeBtn").addEventListener("click",function(){
 
 (function(){
   var ov=document.getElementById("leadOv"), form=document.getElementById("leadForm"), err=document.getElementById("lfErr");
-  var saved=null;
+  var saved=null, purchaseSent=false;
   try{ saved=JSON.parse(localStorage.getItem("_lead")||"null"); }catch(e){}
   function go(){ setTimeout(function(){ console.log("demo: Amazon redirect"); }, 200); }
   function clickEvent(user){
-    metaTrack("AmazonClick",{destination:"amazon",content_name:"Tan Vanish Gluta-Kojic Skin Polish"},user);
+    if(purchaseSent) return; purchaseSent=true;
+    metaTrack("Purchase",{value:980,currency:"INR",content_name:"Tan Vanish Gluta-Kojic Skin Polish",content_type:"product",num_items:1},user);
   }
   document.getElementById("buyBtn").addEventListener("click", function(){
     if(saved && saved.ph){ clickEvent(saved); go(); return; }
@@ -555,18 +569,5 @@ document.getElementById("codeBtn").addEventListener("click",function(){
   });
 })();
 </script>
-<div class="lead-ov" id="leadOv" role="dialog" aria-modal="true" aria-labelledby="leadT">
-  <form class="lead" id="leadForm" novalidate>
-    <h3 id="leadT">Order se pehle details daalein</h3>
-    <p>Offer aur order updates ke liye. Phir aap seedha Amazon par jaayenge.</p>
-    <input id="lfName" type="text" name="fn" placeholder="Pehla naam" autocomplete="given-name">
-    <input id="lfPhone" type="tel" name="ph" placeholder="Mobile number (10 digit)" autocomplete="tel" inputmode="numeric" required>
-    <input id="lfEmail" type="email" name="em" placeholder="Email (optional)" autocomplete="email">
-    <div class="err" id="lfErr"></div>
-    <button class="go" type="submit">Amazon par jaayein</button>
-    <button class="skip" type="button" id="lfSkip">Skip karke aage badhein</button>
-    <div class="fine">Aapki details sirf offers/updates ke liye use hongi.</div>
-  </form>
-</div>
 </body>
 </html>
