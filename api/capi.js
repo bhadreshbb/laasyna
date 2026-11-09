@@ -10,6 +10,10 @@ const ALLOWED_EVENTS = new Set([
   'AmazonClick',
 ]);
 const CUSTOM_EVENTS = new Set(['LandingPageView', 'ImageSwipe', 'CouponCopy', 'AmazonClick']);
+const crypto = require('crypto');
+const sha256 = (v) => crypto.createHash('sha256').update(String(v)).digest('hex');
+const clean = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function dec(v) { try { return decodeURIComponent(v || ''); } catch (e) { return v || ''; } }
 const GRAPH_VERSION = 'v21.0';
 
 function parseBody(req) {
@@ -55,6 +59,14 @@ module.exports = async (req, res) => {
     client_ip_address: clientIp(req),
     client_user_agent: req.headers['user-agent'] || undefined,
   };
+  if (b.external_id) userData.external_id = sha256(String(b.external_id).slice(0, 100).toLowerCase());
+  // Geo from Vercel edge headers (hashed, as Meta requires)
+  const city = clean(dec(req.headers['x-vercel-ip-city']));
+  const region = clean(dec(req.headers['x-vercel-ip-country-region']));
+  const country = clean(req.headers['x-vercel-ip-country']);
+  if (city) userData.ct = sha256(city);
+  if (region) userData.st = sha256(region);
+  if (country) userData.country = sha256(country);
   if (b.fbp) userData.fbp = String(b.fbp).slice(0, 200);
   if (b.fbc) userData.fbc = String(b.fbc).slice(0, 300);
 
