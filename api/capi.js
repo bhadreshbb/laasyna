@@ -3,6 +3,8 @@
 
 const ALLOWED_EVENTS = new Set([
   'PageView',
+  'Lead',
+  'Purchase',
   'ViewContent',
   'LandingPageView',
   'ImageSwipe',
@@ -10,6 +12,7 @@ const ALLOWED_EVENTS = new Set([
   'AmazonClick',
 ]);
 const CUSTOM_EVENTS = new Set(['LandingPageView', 'ImageSwipe', 'CouponCopy', 'AmazonClick']);
+const CUSTOM_KEYS = ['content_name', 'content_type', 'destination', 'currency', 'value', 'num_items'];
 const crypto = require('crypto');
 const sha256 = (v) => crypto.createHash('sha256').update(String(v)).digest('hex');
 const clean = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -67,6 +70,14 @@ module.exports = async (req, res) => {
   if (city) userData.ct = sha256(city);
   if (region) userData.st = sha256(region);
   if (country) userData.country = sha256(country);
+  // Optional user-supplied details (from the lead sheet) -> normalised + SHA-256 hashed
+  const u = b.user && typeof b.user === 'object' ? b.user : {};
+  const ph = String(u.ph || '').replace(/\D/g, '');
+  if (/^91[6-9]\d{9}$/.test(ph)) userData.ph = sha256(ph);
+  const em = String(u.em || '').trim().toLowerCase();
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) && em.length < 200) userData.em = sha256(em);
+  const fn = String(u.fn || '').trim().toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  if (fn) userData.fn = sha256(fn.slice(0, 60));
   if (b.fbp) userData.fbp = String(b.fbp).slice(0, 200);
   if (b.fbc) userData.fbc = String(b.fbc).slice(0, 300);
 
@@ -78,8 +89,14 @@ module.exports = async (req, res) => {
     action_source: 'website',
     user_data: userData,
   };
-  if (b.custom_data && typeof b.custom_data === 'object' && Object.keys(b.custom_data).length) {
-    event.custom_data = b.custom_data;
+  if (b.custom_data && typeof b.custom_data === 'object') {
+    const cd = {};
+    for (const k of CUSTOM_KEYS) if (b.custom_data[k] !== undefined) cd[k] = b.custom_data[k];
+    if (eventName === 'Purchase') {
+      cd.value = Number(cd.value) > 0 ? Number(cd.value) : 980;
+      cd.currency = 'INR';
+    }
+    if (Object.keys(cd).length) event.custom_data = cd;
   }
 
   const payload = { data: [event] };
