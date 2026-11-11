@@ -44,7 +44,7 @@ function getFbc(){
   }catch(e){}
   return '';
 }
-var CUSTOM_EVENTS={LandingPageView:1,ImageSwipe:1,CouponCopy:1};
+var CUSTOM_EVENTS={LandingPageView:1,ImageSwipe:1};
 function metaTrack(name,params,user){
   var eventId=newEventId();
   params=params||{};
@@ -243,7 +243,7 @@ h1{font-size:16px;line-height:1.25;margin:0;font-weight:600;letter-spacing:-.1px
 .buy:active{filter:brightness(.92);transform:scale(.99)}
 
 
-/* Offer banner: INSTA30 */
+/* Offer banner: 10% OFF on Amazon (no code) */
 .offer{
   position:relative;overflow:hidden;display:flex;align-items:center;gap:10px;
   padding:6px 10px;border-radius:12px;color:#fff;
@@ -269,6 +269,7 @@ h1{font-size:16px;line-height:1.25;margin:0;font-weight:600;letter-spacing:-.1px
   color:#fff;font:inherit;font-weight:800;font-size:14px;letter-spacing:1px;padding:6px 9px;cursor:pointer;text-align:center;line-height:1.1
 }
 .oCode small{display:block;font-size:9px;font-weight:600;letter-spacing:.4px;opacity:.9;margin-top:2px}
+.oTag{font-size:12.5px;letter-spacing:.3px}
 @media (prefers-reduced-motion:reduce){.offer,.offer::after{animation:none}}
 
 /* Highlight strip: 20 uses / 15 days gap */
@@ -354,8 +355,8 @@ src="https://www.facebook.com/tr?id=1713357160408455&ev=PageView&noscript=1"/>
           <svg viewBox="0 0 40 40"><path fill="#fff" d="M20 1l4.2 4.6 6.1-1.3 1.7 6 6 1.7-1.3 6.1L41 20l-4.6 4.2 1.3 6.1-6 1.7-1.7 6-6.1-1.3L20 41l-4.2-4.6-6.1 1.3-1.7-6-6-1.7 1.3-6.1L-1 20l4.6-4.2-1.3-6.1 6-1.7 1.7-6 6.1 1.3z" transform="translate(0 0) scale(.95) translate(1 1)"/></svg>
           <b>10%<br>OFF</b>
         </div>
-        <div class="oTxt"><div class="t1">Use code INSTA30 &amp; get</div><div class="t2">10% OFF 🔥</div></div>
-        <button class="oCode" id="codeBtn" type="button">INSTA30<small id="codeHint">TAP TO COPY</small></button>
+        <div class="oTxt"><div class="t1">Click “Apply coupon” on Amazon &amp; get</div><div class="t2">10% OFF 🔥</div></div>
+        <button class="oCode oTag" id="couponTag" type="button" aria-label="Open Amazon and click Apply 10% off coupon">✓ Apply<br>10% OFF<small>COUPON</small></button>
       </div>
 
       <div class="usage">
@@ -503,15 +504,9 @@ const IMAGES = [
 })();
 
 
-/* Tap-to-copy coupon */
-document.getElementById("codeBtn").addEventListener("click",function(){
-  const hint=document.getElementById("codeHint");
-  function done(){ hint.textContent="COPIED!"; setTimeout(function(){hint.textContent="TAP TO COPY";},1600); }
-  try{
-    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText("INSTA30").then(done,done); }
-    else{ const t=document.createElement("textarea"); t.value="INSTA30"; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); done(); }
-  }catch(e){ done(); }
-  metaTrack("CouponCopy");
+/* Tapping the coupon tag opens the Amazon page, where the customer clicks "Apply 10% coupon" */
+document.getElementById("couponTag").addEventListener("click",function(){
+  setTimeout(function(){ window.location.href = AMAZON_URL; }, 150);
 });
 
 (function(){
