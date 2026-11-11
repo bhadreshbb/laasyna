@@ -22,10 +22,18 @@ module.exports = async (req, res) => {
     const SECRET = process.env.GOOGLE_SHEETS_SECRET;
 
     if (!WEBHOOK_URL || !SECRET) {
-      console.error('Google Sheets environment variables missing');
+      console.error('Missing Google Sheets environment variables');
+
       return res.status(500).json({
         ok: false,
         error: 'Google Sheets configuration missing'
+      });
+    }
+
+    if (!WEBHOOK_URL.includes('/exec')) {
+      return res.status(500).json({
+        ok: false,
+        error: 'Invalid Google Apps Script URL. Use deployed /exec URL'
       });
     }
 
@@ -33,6 +41,13 @@ module.exports = async (req, res) => {
 
     if (typeof body === 'string') {
       body = JSON.parse(body);
+    }
+
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid request body'
+      });
     }
 
     const phone = String(body.phone || '').replace(/\D/g, '');
@@ -44,41 +59,77 @@ module.exports = async (req, res) => {
       });
     }
 
+    const payload = {
+      secret: SECRET,
+      phone: phone,
+      event_source_url: String(body.event_source_url || '')
+    };
+
     const response = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain'
       },
-      body: JSON.stringify({
-        secret: SECRET,
-        phone: phone,
-        event_source_url: String(body.event_source_url || '')
-      })
+      body: JSON.stringify(payload),
+      redirect: 'follow'
     });
 
     const responseText = await response.text();
 
+    console.log('Google Sheets HTTP Status:', response.status);
+    console.log('Google Sheets Response:', responseText);
+
     if (!response.ok) {
-      console.error('Google Sheets error:', response.status, responseText);
       return res.status(502).json({
         ok: false,
-        error: 'Google Sheets request failed'
+        error: 'Google Sheets HTTP request failed',
+        status: response.status,
+        details: responseText.slice(0, 1000)
       });
     }
 
-    console.log('Lead sent to Google Sheets:', responseText);
+    let sheetResult;
+
+    try {
+      sheetResult = JSON.parse(responseText);
+    } catch (e) {
+      sheetResult = null;
+    }
+
+    if (
+      responseText.includes('Unauthorized') ||
+      (sheetResult && sheetResult.ok === false)
+    ) {
+      return res.status(502).json({
+        ok: false,
+        error: 'Google Apps Script rejected the request',
+        details: responseText.slice(0, 1000)
+      });
+    }
+
+    if (!responseText.includes('Success') &&
+        !(sheetResult && sheetResult.ok === true)) {
+      return res.status(502).json({
+        ok: false,
+        error: 'Unexpected Google Sheets response',
+        details: responseText.slice(0, 1000)
+      });
+    }
+
+    console.log('Lead successfully sent to Google Sheets');
 
     return res.status(200).json({
       ok: true,
-      message: 'Lead received'
+      message: 'Lead saved successfully'
     });
 
   } catch (error) {
-    console.error('Lead API error:', error);
+    console.error('Lead API Error:', error);
 
     return res.status(500).json({
       ok: false,
-      error: 'Lead processing failed'
+      error: 'Lead processing failed',
+      details: error.message
     });
   }
 };
