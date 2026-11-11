@@ -101,6 +101,7 @@ module.exports = async (req, res) => {
   }
 
   const payload = { data: [event] };
+  await saveToGoogleSheet(event);
   if (process.env.META_TEST_EVENT_CODE) payload.test_event_code = process.env.META_TEST_EVENT_CODE;
 
   try {
@@ -121,3 +122,23 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: 'Request failed' });
   }
 };
+
+
+
+async function saveToGoogleSheet(event) {
+  try {
+    await fetch(process.env.GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      body: JSON.stringify({
+        secret: process.env.GOOGLE_SHEETS_SECRET,
+        event: event
+      })
+    });
+  } catch (error) {
+    console.error('Google Sheets error:', error);
+  }
+}
+
