@@ -6,6 +6,7 @@ const ALLOWED_EVENTS = new Set([
   'Lead',
   'Purchase',
   'ViewContent',
+  'InitiateCheckout',
   'LandingPageView',
   'ImageSwipe',
   'CouponCopy',
