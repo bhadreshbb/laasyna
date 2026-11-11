@@ -301,8 +301,8 @@ h1{font-size:16px;line-height:1.25;margin:0;font-weight:600;letter-spacing:-.1px
 }
 
 /* ---------- Mobile-number bottom sheet ---------- */
-.sheetBack{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .28s ease}
-.sheetBack.show{opacity:1;pointer-events:auto}
+.sheetBack{position:fixed!important;inset:0;z-index:2147483000!important;background:rgba(0,0,0,.55);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .28s ease,visibility .28s ease}
+.sheetBack.show{opacity:1;visibility:visible;pointer-events:auto}
 .sheet{
   position:fixed;left:0;right:0;bottom:0;margin:0 auto;max-width:480px;z-index:51;
   background:var(--bg);color:var(--ink);border-radius:22px 22px 0 0;
@@ -310,7 +310,7 @@ h1{font-size:16px;line-height:1.25;margin:0;font-weight:600;letter-spacing:-.1px
   box-shadow:0 -12px 40px rgba(0,0,0,.35);
   transform:translate3d(0,105%,0);transition:transform .4s cubic-bezier(.22,.9,.28,1),bottom .2s ease;will-change:transform;
 }
-.sheet.show{transform:translate3d(0,0,0)}
+.sheet.show{transform:translate3d(0,0,0);visibility:visible}
 .sheet.drag{transition:none}
 .sGrab{height:20px;display:grid;place-items:center;touch-action:none;cursor:grab}
 .sGrab::before{content:"";width:38px;height:4px;border-radius:4px;background:var(--line)}
@@ -444,7 +444,7 @@ src="https://www.facebook.com/tr?id=1713357160408455&ev=PageView&noscript=1"/>
   </main>
 
   <footer class="cta">
-    <button class="buy" id="buyBtn">
+    <button class="buy" id="buyBtn" type="button">
       <svg viewBox="0 0 32 32" fill="none"><path d="M6 10h20l-2 17H8L6 10Z" stroke="currentColor" stroke-width="2"/><path d="M11 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       Buy Now · New Launch on Amazon
     </button>
@@ -569,9 +569,11 @@ const IMAGES = [
 })();
 
 
-/* Tapping the coupon tag opens the Amazon page, where the customer clicks "Apply 10% coupon" */
-document.getElementById("couponTag").addEventListener("click",function(){
-  setTimeout(function(){ window.location.href = AMAZON_URL; }, 150);
+/* Every outbound CTA must first open the mobile-number popup. */
+document.getElementById("couponTag").addEventListener("click",function(e){
+  e.preventDefault();
+  var trigger=document.getElementById("buyBtn");
+  if(trigger) trigger.click();
 });
 
 (function(){
@@ -630,7 +632,7 @@ document.getElementById("couponTag").addEventListener("click",function(){
     sheet.classList.remove("show"); back.classList.remove("show"); sheet.setAttribute("aria-hidden","true");
     sheet.style.bottom="0px"; sheet.style.transform="";
   }
-  buyBtn.addEventListener("click",openSheet);
+  if(buyBtn) buyBtn.addEventListener("click",function(e){ e.preventDefault(); openSheet(); });
   back.addEventListener("click",closeSheet);
   closeBtn.addEventListener("click",closeSheet);
   document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeSheet(); });
@@ -678,11 +680,10 @@ document.getElementById("couponTag").addEventListener("click",function(){
     var user=userData(phone);
     /* browser pixel: advanced matching (fbq hashes ph automatically) */
     try{ if(typeof window.fbq==="function") fbq("init",PIXEL_ID,{external_id:window.__eid||undefined,ph:phone}); }catch(x){}
-    /* Lead = mobile number captured (browser pixel + server CAPI, same event_id so Meta de-duplicates) */
+    /* Lead = phone number captured. This is NOT a Purchase. */
     metaTrack("Lead",{content_name:PRODUCT,content_type:"product",value:980,currency:"INR"},user);
-    metaTrack("Purchase",{value:980,currency:"INR",content_name:PRODUCT,content_type:"product",num_items:1},user);
 
-    /* go to Amazon once the number is saved (at least 300ms, at most 3s) */
+    /* Purchase is intentionally deferred until the final "Buy Now on Amazon" submit action. */
     var minWait=new Promise(function(r){ setTimeout(r,300); });
     var maxWait=new Promise(function(r){ setTimeout(r,3000); });
     Promise.race([Promise.all([saved,minWait]),maxWait]).then(function(){ window.location.href=AMAZON_URL; });
