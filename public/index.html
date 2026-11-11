@@ -340,6 +340,8 @@ h1{font-size:16px;line-height:1.25;margin:0;font-weight:600;letter-spacing:-.1px
 .go svg{width:18px;height:18px;transition:transform .2s ease}
 .go:hover svg{transform:translateX(3px)}
 .sNote{margin:10px 0 0;font-size:11px;color:var(--muted);text-align:center;line-height:1.35}
+.amazon-retry-note{display:none;margin:9px 0 2px;padding:9px 11px;border-radius:10px;background:#fff8eb;color:#8a570b;font-size:11.5px;line-height:1.4;text-align:center}
+.amazon-retry-note.show{display:block}
 @media (prefers-reduced-motion:reduce){.sheet,.sheetBack,.goWrap{transition:none}}
 
 
@@ -496,6 +498,7 @@ src="https://www.facebook.com/tr?id=1713357160408455&ev=PageView&noscript=1"/>
       <svg class="ok" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-6.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
     <div class="err" id="phoneErr" aria-live="polite"></div>
+    <div class="amazon-retry-note" id="amazonRetryNote" role="status" aria-live="polite">Amazon didn’t open? Tap “Buy Now on Amazon” to try again.</div>
     <div class="goWrap" id="goWrap">
       <button class="go" id="goBtn" type="submit" disabled>
         Buy Now on Amazon
@@ -634,7 +637,7 @@ const IMAGES = [
       closeBtn=document.getElementById("sClose"), grab=document.getElementById("sGrab"),
       redirectLoader=document.getElementById("redirectLoader"),
       redirectTitle=document.getElementById("redirectTitle"),
-      redirectSub=document.getElementById("redirectSub");
+      redirectSub=document.getElementById("redirectSub"), retryNote=document.getElementById("amazonRetryNote");
   var isOpen=false, opened=false, sent=false, poll=0, lastDigits="";
 
   /* ---- phone helpers ---- */
@@ -754,19 +757,39 @@ const IMAGES = [
       }
     }catch(x){}
 
-    /* Redirect when the lead save finishes; 4.5s is only a safety cap for a slow connection. */
+    /* Wait for lead save (with a safety cap), then attempt the Amazon handoff. */
     var minWait=new Promise(function(r){ setTimeout(r,650); });
     var maxWait=new Promise(function(r){ setTimeout(r,4500); });
     Promise.race([Promise.all([saved,minWait]),maxWait]).then(function(){
-      /* Freeze the page loader before Meta/browser may show its native app-exit prompt. */
       if(redirectLoader) redirectLoader.classList.add("handoff-ready");
       if(redirectTitle) redirectTitle.textContent="Continue to Amazon";
       if(redirectSub) redirectSub.textContent='If Meta shows an “Open in another app?” prompt, tap Open to continue to Amazon.';
       var foot=document.getElementById("redirectFoot");
-      if(foot) foot.textContent="This is a normal security prompt";
-      /* Let the static instruction paint once, then start the external handoff. */
+      if(foot) foot.textContent="If you stay here, you can try again";
       requestAnimationFrame(function(){
-        setTimeout(function(){ window.location.href=AMAZON_URL; },120);
+        setTimeout(function(){
+          window.location.href=AMAZON_URL;
+
+          /*
+           * Meta's native "Open in another app?" prompt does not expose a reliable
+           * accept/cancel callback to the webpage. If the user dismisses it (or
+           * the handoff is blocked) and this page remains visible, restore the
+           * landing page and let them retry. If Amazon opens, the page normally
+           * becomes hidden/unloads and this fallback does nothing.
+           */
+          setTimeout(function(){
+            if(document.visibilityState === "visible"){
+              if(redirectLoader){
+                redirectLoader.classList.remove("show","handoff-ready");
+                redirectLoader.setAttribute("aria-hidden","true");
+              }
+              sent=false;
+              goBtn.disabled=!valid(clean(input.value));
+              if(retryNote) retryNote.classList.add("show");
+              refresh();
+            }
+          },2200);
+        },120);
       });
     });
   });
