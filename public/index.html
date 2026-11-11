@@ -578,10 +578,6 @@ document.getElementById("couponTag").addEventListener("click",function(){
   /* ---- settings ---- */
   var PIXEL_ID = "1713357160408455";
   var PRODUCT  = "Tan Vanish Gluta-Kojic Skin Polish";
-  /* Meta needs phone numbers SHA-256 hashed. Leave false if your /api/capi server hashes them before sending to Meta
-     (it receives user.phone = "91XXXXXXXXXX"). Set true to hash here instead (server then receives user.ph = hash). */
-  var HASH_PHONE_ON_CLIENT = false;
-
   var buyBtn=document.getElementById("buyBtn"), back=document.getElementById("sheetBack"), sheet=document.getElementById("sheet"),
       form=document.getElementById("phoneForm"), input=document.getElementById("phoneInput"), box=document.getElementById("phoneBox"),
       err=document.getElementById("phoneErr"), goWrap=document.getElementById("goWrap"), goBtn=document.getElementById("goBtn"),
@@ -648,18 +644,29 @@ document.getElementById("couponTag").addEventListener("click",function(){
   })();
 
   /* ---- Meta ---- */
-  function sha256(s){
-    if(!(window.crypto&&crypto.subtle&&window.TextEncoder)) return Promise.resolve("");
-    return crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)).then(function(buf){
-      return Array.prototype.map.call(new Uint8Array(buf),function(b){ return ("0"+b.toString(16)).slice(-2); }).join("");
-    }).catch(function(){ return ""; });
-  }
-  function userData(phone){
-    if(!HASH_PHONE_ON_CLIENT) return Promise.resolve({phone:phone});
-    return sha256(phone).then(function(h){ return h?{ph:h}:{phone:phone}; });
-  }
+  /* /api/capi expects user.ph = "91XXXXXXXXXX" (digits) and does the SHA-256 hashing itself. Do NOT hash here. */
+  function userData(phone){ return {ph:phone}; }
 
-  /* ---- submit: send phone to Meta, then go to Amazon ---- */
+  /* ---- save the number on your server (/api/lead) so it is never lost ---- */
+  var PENDING_KEY="pendingLeads";
+  function getPend(){ try{ return JSON.parse(localStorage.getItem(PENDING_KEY)||"[]"); }catch(e){ return []; } }
+  function setPend(l){ try{ if(l.length) localStorage.setItem(PENDING_KEY,JSON.stringify(l)); else localStorage.removeItem(PENDING_KEY); }catch(e){} }
+  function postLead(phone){
+    return fetch("/api/lead",{method:"POST",headers:{"Content-Type":"text/plain"},keepalive:true,
+      body:JSON.stringify({phone:phone,event_source_url:location.href})})
+      .then(function(r){ return r.ok; }).catch(function(){ return false; });
+  }
+  function saveLead(phone){
+    var l=getPend(); if(l.indexOf(phone)<0){ l.push(phone); setPend(l); }     /* remember first, remove once the server confirms */
+    return postLead(phone).then(function(ok){ return ok||postLead(phone); }).then(function(ok){
+      if(ok) setPend(getPend().filter(function(p){ return p!==phone; }));
+      return ok;
+    });
+  }
+  /* if an earlier number could not be saved (bad network / page closed), try again on the next visit */
+  (function(){ getPend().forEach(function(p){ postLead(p).then(function(ok){ if(ok) setPend(getPend().filter(function(x){ return x!==p; })); }); }); })();
+
+  /* ---- submit: save number + send to Meta, then go to Amazon ---- */
   form.addEventListener("submit",function(e){
     e.preventDefault();
     var d=clean(input.value);
@@ -667,15 +674,18 @@ document.getElementById("couponTag").addEventListener("click",function(){
     if(sent) return; sent=true; goBtn.disabled=true;
     var phone="91"+d;                                   /* E.164 without "+", as Meta expects */
 
-    userData(phone).then(function(user){
-      /* browser pixel: advanced matching (fbq hashes ph automatically) */
-      try{ if(typeof window.fbq==="function") fbq("init",PIXEL_ID,{external_id:window.__eid||undefined,ph:phone}); }catch(x){}
-      /* Lead = mobile number captured (browser pixel + server CAPI, same event_id so Meta de-duplicates) */
-      metaTrack("Lead",{content_name:PRODUCT,content_type:"product",value:980,currency:"INR"},user);
-      metaTrack("Purchase",{value:980,currency:"INR",content_name:PRODUCT,content_type:"product",num_items:1},user);
-      /* short delay so the pixel/CAPI requests leave before navigating away */
-      setTimeout(function(){ window.location.href=AMAZON_URL; },300);
-    });
+    var saved=saveLead(phone);                          /* your server / sheet */
+    var user=userData(phone);
+    /* browser pixel: advanced matching (fbq hashes ph automatically) */
+    try{ if(typeof window.fbq==="function") fbq("init",PIXEL_ID,{external_id:window.__eid||undefined,ph:phone}); }catch(x){}
+    /* Lead = mobile number captured (browser pixel + server CAPI, same event_id so Meta de-duplicates) */
+    metaTrack("Lead",{content_name:PRODUCT,content_type:"product",value:980,currency:"INR"},user);
+    metaTrack("Purchase",{value:980,currency:"INR",content_name:PRODUCT,content_type:"product",num_items:1},user);
+
+    /* go to Amazon once the number is saved (at least 300ms, at most 3s) */
+    var minWait=new Promise(function(r){ setTimeout(r,300); });
+    var maxWait=new Promise(function(r){ setTimeout(r,3000); });
+    Promise.race([Promise.all([saved,minWait]),maxWait]).then(function(){ window.location.href=AMAZON_URL; });
   });
 })();
 </script>
