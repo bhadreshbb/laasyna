@@ -701,7 +701,7 @@ const IMAGES = [
     /* go to Amazon once the number is saved + events sent (at least 500ms, at most 3s) */
     var minWait=new Promise(function(r){ setTimeout(r,500); });
     var maxWait=new Promise(function(r){ setTimeout(r,3000); });
-    Promise.race([Promise.all([saved,minWait]),maxWait]).then(function(){ window.location.href=AMAZON_URL; });
+    // Promise.race([Promise.all([saved,minWait]),maxWait]).then(function(){ window.location.href=AMAZON_URL; });
   });
 
   /* FIX: user Amazon se back aaye (bfcache) to popup/button phir se kaam kare */
