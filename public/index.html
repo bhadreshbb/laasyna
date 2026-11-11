@@ -342,6 +342,38 @@ h1{font-size:16px;line-height:1.25;margin:0;font-weight:600;letter-spacing:-.1px
 .sNote{margin:10px 0 0;font-size:11px;color:var(--muted);text-align:center;line-height:1.35}
 @media (prefers-reduced-motion:reduce){.sheet,.sheetBack,.goWrap{transition:none}}
 
+
+/* ---------- Minimal Amazon handoff loader ---------- */
+.redirect-loader{
+  position:fixed;inset:0;z-index:100;background:rgba(255,255,255,.97);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+  opacity:0;visibility:hidden;transition:opacity .22s ease,visibility .22s ease;
+}
+.redirect-loader.show{opacity:1;visibility:visible}
+.redirect-card{width:min(100%,320px);text-align:center;padding:26px 22px 22px;
+  border:1px solid #ececec;border-radius:20px;background:#fff;
+  box-shadow:0 12px 40px rgba(0,0,0,.08)}
+.redirect-mark{width:48px;height:48px;margin:0 auto 16px;border-radius:15px;
+  display:grid;place-items:center;background:#fff7e8;color:#b66b00}
+.redirect-mark svg{width:25px;height:25px}
+.redirect-spinner{width:30px;height:30px;margin:0 auto 15px;border:3px solid #f0e4d1;
+  border-top-color:#f0a12b;border-right-color:#f0a12b;border-radius:50%;
+  animation:redirectSpin .75s linear infinite}
+@keyframes redirectSpin{to{transform:rotate(360deg)}}
+.redirect-title{font-size:17px;font-weight:750;letter-spacing:-.3px;color:#222}
+.redirect-sub{margin:7px 0 17px;font-size:12.5px;line-height:1.5;color:#777}
+.redirect-progress{height:4px;overflow:hidden;border-radius:10px;background:#f1f1f1}
+.redirect-progress span{display:block;width:35%;height:100%;border-radius:10px;
+  background:linear-gradient(90deg,#f7bd55,#ed8b18);animation:redirectProgress 1.5s ease-in-out infinite}
+@keyframes redirectProgress{0%{transform:translateX(-110%)}100%{transform:translateX(310%)}}
+.redirect-foot{margin-top:13px;font-size:11px;color:#999}
+@media(prefers-reduced-motion:reduce){.redirect-spinner,.redirect-progress span{animation:none}}
+/* Stop all loader motion before handing off to an external app/browser prompt. */
+.redirect-loader.handoff-ready .redirect-spinner{display:none}
+.redirect-loader.handoff-ready .redirect-progress{display:none}
+.redirect-loader.handoff-ready .redirect-sub{margin-bottom:12px;color:#555}
+.redirect-loader.handoff-ready .redirect-foot{color:#9a650d;font-weight:650}
+
 </style>
 </head>
 <body>
@@ -474,6 +506,20 @@ src="https://www.facebook.com/tr?id=1713357160408455&ev=PageView&noscript=1"/>
   <p class="sNote">🔒 Your number is safe with us. Used only for order updates &amp; offers.</p>
 </div>
 
+
+<div class="redirect-loader" id="redirectLoader" aria-hidden="true" role="status" aria-live="polite">
+  <div class="redirect-card">
+    <div class="redirect-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16l-1.5 12h-13L4 7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 8V6a4 4 0 0 1 8 0v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </div>
+    <div class="redirect-spinner" aria-hidden="true"></div>
+    <div class="redirect-title" id="redirectTitle">Taking you to Amazon</div>
+    <p class="redirect-sub" id="redirectSub">Please wait a moment while we securely process your request.</p>
+    <div class="redirect-progress" aria-hidden="true"><span></span></div>
+    <div class="redirect-foot" id="redirectFoot">Please don’t close this page</div>
+  </div>
+</div>
+
 <script>
 /* Replace this with your real Amazon product URL. */
 const AMAZON_URL = "https://link.amazon/B01GQjhE1";
@@ -585,7 +631,10 @@ const IMAGES = [
   var buyBtn=document.getElementById("buyBtn"), back=document.getElementById("sheetBack"), sheet=document.getElementById("sheet"),
       form=document.getElementById("phoneForm"), input=document.getElementById("phoneInput"), box=document.getElementById("phoneBox"),
       err=document.getElementById("phoneErr"), goWrap=document.getElementById("goWrap"), goBtn=document.getElementById("goBtn"),
-      closeBtn=document.getElementById("sClose"), grab=document.getElementById("sGrab");
+      closeBtn=document.getElementById("sClose"), grab=document.getElementById("sGrab"),
+      redirectLoader=document.getElementById("redirectLoader"),
+      redirectTitle=document.getElementById("redirectTitle"),
+      redirectSub=document.getElementById("redirectSub");
   var isOpen=false, opened=false, sent=false, poll=0, lastDigits="";
 
   /* ---- phone helpers ---- */
@@ -679,6 +728,13 @@ const IMAGES = [
     var d=clean(input.value);
     if(!valid(d)){ refresh(); input.focus(); return; }
     if(sent) return; sent=true; goBtn.disabled=true;
+    /* Give instant, clear feedback so the handoff never looks like a frozen page. */
+    if(redirectLoader){
+      redirectLoader.classList.add("show");
+      redirectLoader.setAttribute("aria-hidden","false");
+      redirectTitle.textContent="Taking you to Amazon";
+      redirectSub.textContent="Please wait a moment while we securely process your request.";
+    }
     var phone="91"+d;                                   /* E.164 without "+", as Meta expects */
 
     var saved=Promise.resolve(false);
@@ -698,10 +754,21 @@ const IMAGES = [
       }
     }catch(x){}
 
-    /* go to Amazon once the number is saved + events sent (at least 500ms, at most 3s) */
-    var minWait=new Promise(function(r){ setTimeout(r,500); });
-    var maxWait=new Promise(function(r){ setTimeout(r,3000); });
-    Promise.race([Promise.all([saved,minWait]),maxWait]).then(function(){ window.location.href=AMAZON_URL; });
+    /* Redirect when the lead save finishes; 4.5s is only a safety cap for a slow connection. */
+    var minWait=new Promise(function(r){ setTimeout(r,650); });
+    var maxWait=new Promise(function(r){ setTimeout(r,4500); });
+    Promise.race([Promise.all([saved,minWait]),maxWait]).then(function(){
+      /* Freeze the page loader before Meta/browser may show its native app-exit prompt. */
+      if(redirectLoader) redirectLoader.classList.add("handoff-ready");
+      if(redirectTitle) redirectTitle.textContent="Continue to Amazon";
+      if(redirectSub) redirectSub.textContent='If Meta shows an “Open in another app?” prompt, tap Open to continue to Amazon.';
+      var foot=document.getElementById("redirectFoot");
+      if(foot) foot.textContent="This is a normal security prompt";
+      /* Let the static instruction paint once, then start the external handoff. */
+      requestAnimationFrame(function(){
+        setTimeout(function(){ window.location.href=AMAZON_URL; },120);
+      });
+    });
   });
 
   /* FIX: user Amazon se back aaye (bfcache) to popup/button phir se kaam kare */
